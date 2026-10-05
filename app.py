@@ -1,3 +1,4 @@
+from datetime import timedelta
 import os, re, io, json, time, wave, hmac, asyncio, hashlib, threading
 import requests
 from flask import Flask, request, session, redirect, url_for, render_template_string, jsonify, Response
@@ -14,7 +15,8 @@ EDGE_RATE = os.environ.get('EDGE_RATE', '+25%')
 DATA = os.environ.get('DATA_FILE', '/tmp/ivr_admin.json')
 REMOTE_CFG = f'{BASE}/_admin_config.ini'
 app.secret_key = os.environ.get('SECRET_KEY') or hashlib.sha256(('k' + ADMIN_PASSWORD + YM_PASS).encode()).hexdigest()
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=bool(os.environ.get('COOKIE_SECURE', '1') == '1'))
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=bool(os.environ.get('COOKIE_SECURE', '1') == '1'),
+                  PERMANENT_SESSION_LIFETIME=timedelta(days=3650))   # sign in once, stay signed in
 LOCK = threading.Lock()
 TYPES = {'playfile': 'השמעת קבצים מהתיקייה', 'submenu': 'תת-תפריט'}
 DEFAULT = {'greeting_pre': 'ברוכים הבאים.', 'greeting_post': '', 'items': [], 'published': None, 'prev': None}
@@ -137,7 +139,7 @@ def login():
         return render_template_string(PAGE_LOGIN, msg='יותר מדי ניסיונות, נסה שוב בעוד 15 דקות'), 429
     if request.method == 'POST':
         if ADMIN_PASSWORD and hmac.compare_digest(request.form.get('password', ''), ADMIN_PASSWORD):
-            session['ok'] = True; session['csrf'] = hashlib.sha256(os.urandom(16)).hexdigest()
+            session.permanent = True; session['ok'] = True; session['csrf'] = hashlib.sha256(os.urandom(16)).hexdigest()
             FAILS.pop(ip, None); return redirect('/')
         FAILS[ip] = (n + 1, time.time()); msg = 'סיסמה שגויה'
     return render_template_string(PAGE_LOGIN, msg=msg)
